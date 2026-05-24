@@ -1,0 +1,263 @@
+import math
+
+// Minecraft A* pathfinding for 1.21.1.
+// Corresponds to PrismarineJS/mineflayer-pathfinder.
+//
+// Usage:
+//   import mc_pathfinder
+//   let path = mc_pathfinder.find_path(start, goal, is_walkable)
+
+// --- Types ---
+
+type Pos = { x: Int, y: Int, z: Int }
+
+type PathNode = {
+  pos: Pos,
+  g: Float,
+  h: Float,
+  parent: Option[Pos],
+}
+
+fn f_cost(node: PathNode) -> Float = node.g + node.h
+
+// --- Heuristic ---
+
+fn manhattan(a: Pos, b: Pos) -> Float = {
+  let dx = if a.x > b.x then a.x - b.x else b.x - a.x
+  let dy = if a.y > b.y then a.y - b.y else b.y - a.y
+  let dz = if a.z > b.z then a.z - b.z else b.z - a.z
+  int.to_float(dx + dy + dz)
+}
+
+fn euclidean(a: Pos, b: Pos) -> Float = {
+  let dx = int.to_float(a.x - b.x)
+  let dy = int.to_float(a.y - b.y)
+  let dz = int.to_float(a.z - b.z)
+  math.sqrt(dx * dx + dy * dy + dz * dz)
+}
+
+// --- Neighbors ---
+
+// 6 cardinal directions (no diagonals)
+fn neighbors_cardinal(pos: Pos) -> List[Pos] = [
+  { x: pos.x + 1, y: pos.y, z: pos.z },
+  { x: pos.x - 1, y: pos.y, z: pos.z },
+  { x: pos.x, y: pos.y, z: pos.z + 1 },
+  { x: pos.x, y: pos.y, z: pos.z - 1 },
+  { x: pos.x, y: pos.y + 1, z: pos.z },
+  { x: pos.x, y: pos.y - 1, z: pos.z },
+]
+
+// 4 horizontal + up/down with step (walk on same level or ±1)
+fn neighbors_walk(pos: Pos) -> List[Pos] = [
+  { x: pos.x + 1, y: pos.y, z: pos.z },
+  { x: pos.x - 1, y: pos.y, z: pos.z },
+  { x: pos.x, y: pos.y, z: pos.z + 1 },
+  { x: pos.x, y: pos.y, z: pos.z - 1 },
+  { x: pos.x + 1, y: pos.y + 1, z: pos.z },
+  { x: pos.x - 1, y: pos.y + 1, z: pos.z },
+  { x: pos.x, y: pos.y + 1, z: pos.z + 1 },
+  { x: pos.x, y: pos.y + 1, z: pos.z - 1 },
+  { x: pos.x + 1, y: pos.y - 1, z: pos.z },
+  { x: pos.x - 1, y: pos.y - 1, z: pos.z },
+  { x: pos.x, y: pos.y - 1, z: pos.z + 1 },
+  { x: pos.x, y: pos.y - 1, z: pos.z - 1 },
+]
+
+// --- A* ---
+
+fn pos_eq(a: Pos, b: Pos) -> Bool =
+  a.x == b.x and a.y == b.y and a.z == b.z
+
+fn pos_key(p: Pos) -> String =
+  "${int.to_string(p.x)},${int.to_string(p.y)},${int.to_string(p.z)}"
+
+// Find path from start to goal.
+// is_walkable: checks if a position can be walked to.
+// max_iterations: prevents infinite loops.
+// Returns list of positions from start to goal (inclusive), or empty if no path.
+fn find_path(start: Pos, goal: Pos, is_walkable: (Pos) -> Bool, max_iterations: Int) -> List[Pos] = {
+  if pos_eq(start, goal) then [start]
+  else {
+    // Open list (sorted by f cost) and closed set
+    var open: List[PathNode] = [{
+      pos: start, g: 0.0, h: manhattan(start, goal), parent: none,
+    }]
+    var closed_nodes: List[PathNode] = []
+    var found: List[Pos] = []
+    var iterations = 0
+
+    while list.length(open) > 0 and list.is_empty(found) and iterations < max_iterations {
+      iterations = iterations + 1
+
+      // Find node with lowest f cost
+      var best_idx = 0
+      var best_f = f_cost(list.get(open, 0) ?? { pos: start, g: 0.0, h: 0.0, parent: none })
+      for i in 1..list.length(open) {
+        let node = list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
+        if f_cost(node) < best_f then { best_idx = i; best_f = f_cost(node) } else { () }
+      }
+
+      let current = list.get(open, best_idx) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
+      // Remove element at best_idx
+      var new_open: List[PathNode] = []
+      for i in 0..list.length(open) {
+        if i != best_idx then {
+          new_open = new_open + [list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }]
+        } else { () }
+      }
+      open = new_open
+
+      if pos_eq(current.pos, goal) then {
+        found = reconstruct(current, closed_nodes)
+      } else {
+        closed_nodes = closed_nodes + [current]
+
+        let nbrs = neighbors_cardinal(current.pos)
+        for nbr in nbrs {
+          let in_closed = list.any(closed_nodes, (c) => pos_eq(c.pos, nbr))
+          if not in_closed and is_walkable(nbr) then {
+            let new_g = current.g + 1.0
+            let existing = list.find(open, (n) => pos_eq(n.pos, nbr))
+            match existing {
+              some(ex) => {
+                if new_g < ex.g then {
+                  open = list.map(open, (n) => if pos_eq(n.pos, nbr) then { ...n, g: new_g, parent: some(current.pos) } else n)
+                } else { () }
+              },
+              none => {
+                open = open + [{ pos: nbr, g: new_g, h: manhattan(nbr, goal), parent: some(current.pos) }]
+              },
+            }
+          } else { () }
+        }
+      }
+    }
+    found
+  }
+}
+
+// Reconstruct path from goal node back to start by walking parent chain
+local fn reconstruct(goal_node: PathNode, closed_nodes: List[PathNode]) -> List[Pos] = {
+  var path = [goal_node.pos]
+  var current_parent = goal_node.parent
+  var safety = 0
+  let max_safety = list.length(closed_nodes) + 1
+  while safety < max_safety {
+    safety = safety + 1
+    match current_parent {
+      none => { safety = max_safety },
+      some(parent_pos) => {
+        path = [parent_pos] + path
+        let parent_node = list.find(closed_nodes, (n) => pos_eq(n.pos, parent_pos))
+        match parent_node {
+          some(pn) => { current_parent = pn.parent },
+          none => { safety = max_safety },
+        }
+      },
+    }
+  }
+  path
+}
+
+// --- Tests ---
+
+test "manhattan" where [
+  "same"     [ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0, want = 0.0],
+  "unit"     [ax = 0, ay = 0, az = 0, bx = 1, by = 0, bz = 0, want = 1.0],
+  "diagonal" [ax = 0, ay = 0, az = 0, bx = 3, by = 4, bz = 5, want = 12.0],
+] {
+  let a: Pos = { x: ax, y: ay, z: az }
+  let b: Pos = { x: bx, y: by, z: bz }
+  assert_eq(manhattan(a, b), want)
+}
+
+test "neighbors_cardinal count" {
+  assert_eq(list.length(neighbors_cardinal({ x: 0, y: 0, z: 0 })), 6)
+}
+
+test "neighbors_walk count" {
+  assert_eq(list.length(neighbors_walk({ x: 0, y: 0, z: 0 })), 12)
+}
+
+test "pos_eq" {
+  assert(pos_eq({ x: 1, y: 2, z: 3 }, { x: 1, y: 2, z: 3 }))
+  assert(not pos_eq({ x: 1, y: 2, z: 3 }, { x: 1, y: 2, z: 4 }))
+}
+
+test "find_path - same position" {
+  let path = find_path({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, (_p) => true, 100)
+  assert_eq(list.length(path), 1)
+}
+
+test "find_path - adjacent" {
+  let path = find_path(
+    { x: 0, y: 0, z: 0 },
+    { x: 1, y: 0, z: 0 },
+    (_p) => true,
+    100
+  )
+  assert(list.length(path) > 0)
+}
+
+test "find_path - blocked" {
+  let path = find_path(
+    { x: 0, y: 0, z: 0 },
+    { x: 5, y: 0, z: 0 },
+    (_p) => false,
+    100
+  )
+  assert_eq(list.length(path), 0)
+}
+
+test "f_cost" {
+  let node: PathNode = { pos: { x: 0, y: 0, z: 0 }, g: 3.0, h: 7.0, parent: none }
+  assert_eq(f_cost(node), 10.0)
+}
+
+test "pos_key" {
+  assert_eq(pos_key({ x: 1, y: -2, z: 3 }), "1,-2,3")
+}
+
+test "euclidean 3-4-5" {
+  let d = euclidean({ x: 0, y: 0, z: 0 }, { x: 3, y: 4, z: 0 })
+  assert_eq(d, 5.0)
+}
+
+test "find_path - straight line 3 blocks" {
+  let path = find_path(
+    { x: 0, y: 0, z: 0 },
+    { x: 3, y: 0, z: 0 },
+    (_p) => true,
+    1000
+  )
+  assert_eq(list.length(path), 4)
+  let first = list.get(path, 0) ?? { x: -1, y: -1, z: -1 }
+  let last = list.get(path, 3) ?? { x: -1, y: -1, z: -1 }
+  assert(pos_eq(first, { x: 0, y: 0, z: 0 }))
+  assert(pos_eq(last, { x: 3, y: 0, z: 0 }))
+}
+
+test "find_path - path around wall" {
+  let path = find_path(
+    { x: 0, y: 0, z: 0 },
+    { x: 2, y: 0, z: 0 },
+    (p) => not (p.x == 1 and p.z == 0 and p.y == 0),
+    1000
+  )
+  assert(list.length(path) > 0)
+  let first = list.get(path, 0) ?? { x: -1, y: -1, z: -1 }
+  let last = list.get(path, list.length(path) - 1) ?? { x: -1, y: -1, z: -1 }
+  assert(pos_eq(first, { x: 0, y: 0, z: 0 }))
+  assert(pos_eq(last, { x: 2, y: 0, z: 0 }))
+}
+
+test "find_path - max iterations exceeded" {
+  let path = find_path(
+    { x: 0, y: 0, z: 0 },
+    { x: 100, y: 0, z: 0 },
+    (_p) => true,
+    5
+  )
+  assert_eq(list.length(path), 0)
+}
