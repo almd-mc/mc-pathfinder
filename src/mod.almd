@@ -26,13 +26,13 @@ fn manhattan(a: Pos, b: Pos) -> Float = {
   let dx = if a.x > b.x then a.x - b.x else b.x - a.x
   let dy = if a.y > b.y then a.y - b.y else b.y - a.y
   let dz = if a.z > b.z then a.z - b.z else b.z - a.z
-  int.to_float(dx + dy + dz)
+  float.from(dx + dy + dz)
 }
 
 fn euclidean(a: Pos, b: Pos) -> Float = {
-  let dx = int.to_float(a.x - b.x)
-  let dy = int.to_float(a.y - b.y)
-  let dz = int.to_float(a.z - b.z)
+  let dx = float.from(a.x - b.x)
+  let dy = float.from(a.y - b.y)
+  let dz = float.from(a.z - b.z)
   math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 
