@@ -93,7 +93,7 @@ fn find_path(start: Pos, goal: Pos, is_walkable: (Pos) -> Bool, max_iterations: 
       // Find node with lowest f cost
       var best_idx = 0
       var best_f = f_cost(list.get(open, 0) ?? { pos: start, g: 0.0, h: 0.0, parent: none })
-      for i in 1..list.length(open) {
+      for i in 1..<list.length(open) {
         let node = list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
         if f_cost(node) < best_f then { best_idx = i; best_f = f_cost(node) } else { () }
       }
@@ -101,7 +101,7 @@ fn find_path(start: Pos, goal: Pos, is_walkable: (Pos) -> Bool, max_iterations: 
       let current = list.get(open, best_idx) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
       // Remove element at best_idx
       var new_open: List[PathNode] = []
-      for i in 0..list.length(open) {
+      for i in 0..<list.length(open) {
         if i != best_idx then {
           new_open = new_open + [list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }]
         } else { () }
