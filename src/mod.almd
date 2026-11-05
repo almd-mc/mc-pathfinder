@@ -26,13 +26,13 @@ fn manhattan(a: Pos, b: Pos) -> Float = {
   let dx = if a.x > b.x then a.x - b.x else b.x - a.x
   let dy = if a.y > b.y then a.y - b.y else b.y - a.y
   let dz = if a.z > b.z then a.z - b.z else b.z - a.z
-  int.to_float(dx + dy + dz)
+  float.from(dx + dy + dz)
 }
 
 fn euclidean(a: Pos, b: Pos) -> Float = {
-  let dx = int.to_float(a.x - b.x)
-  let dy = int.to_float(a.y - b.y)
-  let dz = int.to_float(a.z - b.z)
+  let dx = float.from(a.x - b.x)
+  let dy = float.from(a.y - b.y)
+  let dz = float.from(a.z - b.z)
   math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 
@@ -93,7 +93,7 @@ fn find_path(start: Pos, goal: Pos, is_walkable: (Pos) -> Bool, max_iterations: 
       // Find node with lowest f cost
       var best_idx = 0
       var best_f = f_cost(list.get(open, 0) ?? { pos: start, g: 0.0, h: 0.0, parent: none })
-      for i in 1..list.length(open) {
+      for i in 1..<list.length(open) {
         let node = list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
         if f_cost(node) < best_f then { best_idx = i; best_f = f_cost(node) } else { () }
       }
@@ -101,7 +101,7 @@ fn find_path(start: Pos, goal: Pos, is_walkable: (Pos) -> Bool, max_iterations: 
       let current = list.get(open, best_idx) ?? { pos: start, g: 0.0, h: 0.0, parent: none }
       // Remove element at best_idx
       var new_open: List[PathNode] = []
-      for i in 0..list.length(open) {
+      for i in 0..<list.length(open) {
         if i != best_idx then {
           new_open = new_open + [list.get(open, i) ?? { pos: start, g: 0.0, h: 0.0, parent: none }]
         } else { () }
